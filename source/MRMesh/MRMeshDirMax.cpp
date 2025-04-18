@@ -1,4 +1,5 @@
 #include "MRMeshDirMax.h"
+#include "MRDirMaxBruteForce.h"
 #include "MRAABBTree.h"
 #include "MRMesh.h"
 #include "MRTimer.h"
@@ -7,43 +8,28 @@
 namespace MR
 {
 
-static VertId findDirMaxBruteForce( const Vector3f & dir, const MeshPart & mp )
+namespace
 {
-    MR_TIMER
-    VertId res;
-    float furthestProj = -FLT_MAX;
-    if ( mp.region )
-    {
-        for ( auto f : *mp.region )
-        {
-            VertId vs[3];
-            mp.mesh.topology.getTriVerts( f, vs );
-            for ( auto v : vs )
-            {
-                auto proj = dot( mp.mesh.points[v], dir );
-                if ( proj > furthestProj )
-                {
-                    furthestProj = proj;
-                    res = v;
-                }
-            }
-        }
-    }
-    else
-    {
-        for ( auto v : mp.mesh.topology.getValidVerts() )
-        {
-            auto proj = dot( mp.mesh.points[v], dir );
-            if ( proj > furthestProj )
-            {
-                furthestProj = proj;
-                res = v;
-            }
-        }
-    }
 
-    return res;
-}
+/// this class is intended to quickly compute maximum projection value of a box on given direction
+class FurthestBoxProj
+{
+public:
+    FurthestBoxProj( const Vector3f& dir ) :
+        minFactor_{ dir.x <= 0 ? dir.x : 0.0f, dir.y <= 0 ? dir.y : 0.0f, dir.z <= 0 ? dir.z : 0.0f },
+        maxFactor_{ dir.x >= 0 ? dir.x : 0.0f, dir.y >= 0 ? dir.y : 0.0f, dir.z >= 0 ? dir.z : 0.0f }
+    {}
+
+    float operator()( const Box3f & box ) const
+    {
+        return dot( minFactor_, box.min ) + dot( maxFactor_, box.max );
+    };
+
+private:
+    Vector3f minFactor_, maxFactor_;
+};
+
+} // anonymous namespace
 
 VertId findDirMax( const Vector3f & dir, const MeshPart & mp, UseAABBTree u )
 {
@@ -64,12 +50,7 @@ VertId findDirMax( const Vector3f & dir, const MeshPart & mp, UseAABBTree u )
         SubTask( NodeId n, float bp ) : n( n ), furthestBoxProj( bp ) { }
     };
 
-    const Vector3f minFactor{ dir.x <= 0 ? dir.x : 0.0f, dir.y <= 0 ? dir.y : 0.0f, dir.z <= 0 ? dir.z : 0.0f };
-    const Vector3f maxFactor{ dir.x >= 0 ? dir.x : 0.0f, dir.y >= 0 ? dir.y : 0.0f, dir.z >= 0 ? dir.z : 0.0f };
-    auto getFurthestBoxProj = [&]( const Box3f & box )
-    {
-        return dot( minFactor, box.min ) + dot( maxFactor, box.max );
-    };
+    FurthestBoxProj getFurthestBoxProj( dir );
 
     constexpr int MaxStackSize = 32; // to avoid allocations
     SubTask subtasks[MaxStackSize];
@@ -117,7 +98,7 @@ VertId findDirMax( const Vector3f & dir, const MeshPart & mp, UseAABBTree u )
             }
             continue;
         }
-        
+
         auto s1 = getSubTask( node.l );
         auto s2 = getSubTask( node.r );
         // add task with larger projection on line last to descend there first

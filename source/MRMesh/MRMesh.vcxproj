@@ -30,6 +30,7 @@
     <ClInclude Include="MRCylinderApproximator.h" />
     <ClInclude Include="MRCylinderObject.h" />
     <ClInclude Include="MRDipole.h" />
+    <ClInclude Include="MRDirMaxBruteForce.h" />
     <ClInclude Include="MRDistanceToMeshOptions.h" />
     <ClInclude Include="MREdgeLengthMesh.h" />
     <ClInclude Include="MREnums.h" />
@@ -57,6 +58,7 @@
     <ClInclude Include="MRMeshAttributesToUpdate.h" />
     <ClInclude Include="MRMeshDecimateCallbacks.h" />
     <ClInclude Include="MRMeshLoadSettings.h" />
+    <ClInclude Include="MRMeshMath.h" />
     <ClInclude Include="MRMeshMeshDistance.h" />
     <ClInclude Include="MRMeshOrPoints.h" />
     <ClInclude Include="MRAggregateFlow.h" />
@@ -415,7 +417,9 @@
     <ClInclude Include="MRTbbThreadMutex.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="MRDirMaxBruteForce.cpp" />
     <ClCompile Include="MREdgeLengthMesh.cpp" />
+    <ClCompile Include="MRMeshMath.cpp" />
     <ClCompile Include="MRMeshOrPointsObject.cpp" />
     <ClCompile Include="MRMeshDoubleLayer.cpp" />
     <ClCompile Include="MRObjectMeshData.cpp" />
