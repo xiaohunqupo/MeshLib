@@ -3,6 +3,10 @@ cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)
+  set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../cmake/Modules")
 include(ConfigureVcpkg)
 
@@ -80,7 +84,7 @@ ELSE()
   ENDIF()
 ENDIF()
 
-add_subdirectory(./OpenCTM ./OpenCTM)
+add_subdirectory(./OpenCTM-git ./OpenCTM)
 
 option(PHMAP_INSTALL "" ON)
 add_subdirectory(./parallel-hashmap)
@@ -149,8 +153,6 @@ ELSE() # not MR_EMSCRIPTEN
   set(BUILD_SHARED_LIBS ON)
   set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
   add_subdirectory(./clip)
-  file(GLOB CLIP_HEADERS "clip/*.h")
-  install(FILES ${CLIP_HEADERS} DESTINATION ${MESHLIB_THIRDPARTY_INCLUDE_DIR}/clip)
 
   set(E57_GIT_SUBMODULE_UPDATE OFF)
   set(E57_XML_PARSER TinyXML2 CACHE STRING "")

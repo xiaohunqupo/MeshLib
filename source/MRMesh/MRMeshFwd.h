@@ -350,6 +350,10 @@ template <typename T> using Box1 = Box<T>;
 template <typename T> using Box2 = Box<Vector2<T>>;
 template <typename T> using Box3 = Box<Vector3<T>>;
 
+template<typename T, typename I> struct MinArg;
+template<typename T, typename I> struct MaxArg;
+template<typename T, typename I> struct MinMaxArg;
+
 MR_CANONICAL_TYPEDEFS( (template <typename V> struct MRMESH_CLASS), Ball,
     ( Ball1f,  Ball<float>     )
     ( Ball1d,  Ball<double>    )
@@ -458,6 +462,7 @@ MR_CANONICAL_TYPEDEFS( (template <typename T, typename I> class MRMESH_CLASS), V
     ( Vert2RegionMap,  Vector<RegionId, VertId> )
 
     ( VertCoords,  Vector<Vector3f, VertId> )
+    ( VertCoords2, Vector<Vector2f, VertId> )
     ( VertNormals,  Vector<Vector3f, VertId> )
     ( VertUVCoords,  Vector<UVCoord, VertId> )
     ( FaceNormals,  Vector<Vector3f, FaceId> )

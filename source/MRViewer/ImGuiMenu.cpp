@@ -7,6 +7,7 @@
 // obtain one at http://mozilla.org/MPL/2.0/.
 ////////////////////////////////////////////////////////////////////////////////
 #include "ImGuiMenu.h"
+#include "MRMesh/MRChrono.h"
 #include "MRMesh/MRObjectDimensionsEnum.h"
 #include "MRViewer.h"
 #include "MRRecentFilesStore.h"
@@ -89,6 +90,7 @@
 #include "MRMouseController.h"
 #include "MRSceneCache.h"
 #include "MRSceneObjectsListDrawer.h"
+#include "MRUIRectAllocator.h"
 
 #ifndef MRVIEWER_NO_VOXELS
 #include "MRVoxels/MRObjectVoxels.h"
@@ -271,6 +273,7 @@ void ImGuiMenu::startFrame()
 
     }
     ImGui::NewFrame();
+    UI::getDefaultWindowRectAllocator().invalidateClosedWindows();
 }
 
 void ImGuiMenu::finishFrame()
@@ -2618,7 +2621,7 @@ void ImGuiMenu::draw_mr_menu()
         {
             auto now = std::chrono::system_clock::now();
             std::time_t t = std::chrono::system_clock::to_time_t( now );
-            auto name = fmt::format( "Screenshot_{:%Y-%m-%d_%H-%M-%S}", fmt::localtime( t ) );
+            auto name = fmt::format( "Screenshot_{:%Y-%m-%d_%H-%M-%S}", LocaltimeOrZero( t ) );
 
             auto savePath = saveFileDialog( {
                 .fileName = name,

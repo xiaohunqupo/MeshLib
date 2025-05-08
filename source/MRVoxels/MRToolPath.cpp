@@ -7,7 +7,7 @@
 #include "MRMesh/MRBox.h"
 #include "MRMesh/MRExtractIsolines.h"
 #include "MRMesh/MRSurfaceDistance.h"
-#include "MRMesh/MRMeshDirMax.h"
+#include "MRMesh/MRDirMax.h"
 #include "MRMesh/MRParallelMinMax.h"
 #include "MRMesh/MRObjectGcode.h"
 #include "MRMesh/MRExpected.h"
@@ -95,7 +95,7 @@ Expected<Mesh> preprocessMesh( const Mesh& inputMesh, const ToolPathParams& para
     if ( !reportProgress( params.cb, 0.15f ) )
         return unexpectedOperationCanceled();
     
-    FixUndercuts::fix( meshCopy, { .upDirection = Vector3f::plusZ(),.voxelSize = params.voxelSize } );
+    FixUndercuts::fix( meshCopy, { .findParameters = {.upDirection = Vector3f::plusZ()},.voxelSize = params.voxelSize } );
     
     if ( !reportProgress( params.cb, 0.20f ) )
         return unexpectedOperationCanceled();
@@ -362,11 +362,11 @@ Intervals getIntervals( const MeshPart& mp, const MeshPart* offset, const V3fIt 
         const float maxDistSq = 2 * toolRadius * toolRadius;
         const auto mpr = offset ? offset->mesh.projectPoint( *it, maxDistSq ) : mp.mesh.projectPoint( *it, maxDistSq );
 
-        bool isInsideSelection = mpr.has_value();
+        bool isInsideSelection = mpr.valid();
 
         if ( isInsideSelection )
         {
-            const auto faceId = offset ? offset->mesh.topology.left( mpr->mtp.e ) : mp.mesh.topology.left( mpr->mtp.e );
+            const auto faceId = offset ? offset->mesh.topology.left( mpr.mtp.e ) : mp.mesh.topology.left( mpr.mtp.e );
 
             isInsideSelection = offset ?
                 ( !offset->region || ( mpr && offset->region->test( faceId ) ) ) :
