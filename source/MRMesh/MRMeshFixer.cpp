@@ -79,10 +79,10 @@ int duplicateMultiHoleVertices( Mesh & mesh )
 
 Expected<std::vector<MultipleEdge>> findMultipleEdges( const MeshTopology& topology, ProgressCallback cb )
 {
-    MR_TIMER
+    MR_TIMER;
     tbb::enumerable_thread_specific<std::vector<MultipleEdge>> threadData;
     const VertId lastValidVert = topology.lastValidVert();
-    
+
     auto mainThreadId = std::this_thread::get_id();
     std::atomic<bool> keepGoing{ true };
     std::atomic<size_t> numDone{ 0 };
@@ -178,7 +178,7 @@ Expected<void> fixMeshDegeneracies( Mesh& mesh, const FixMeshDegeneraciesParams&
         return {}; // nothing to fix
     if ( !reportProgress( sbd, 0.25f ) )
         return unexpectedOperationCanceled();
-    
+
     DecimateSettings dsettings
     {
         .strategy = DecimateStrategy::ShortestEdgeFirst,
@@ -277,7 +277,7 @@ Expected<void> fixMeshDegeneracies( Mesh& mesh, const FixMeshDegeneraciesParams&
             if ( params.region )
                 *params.region |= newFaces;
         }
-        if ( !sb( ( i + 1.f ) / boundaryEdges.size() ) )
+        if ( !reportProgress( sb, ( i + 1.f ) / boundaryEdges.size() ) )
             return unexpectedOperationCanceled();
     }
     if ( params.region )
@@ -308,11 +308,34 @@ VertBitSet findNRingVerts( const MeshTopology& topology, int n, const VertBitSet
     return result;
 }
 
-FaceBitSet findDisorientedFaces( const Mesh& mesh )
+Expected<FaceBitSet> findDisorientedFaces( const Mesh& mesh, const FindDisorientationParams& params )
 {
-    MR_TIMER
+    MR_TIMER;
     auto disorientedFaces = mesh.topology.getValidFaces();
-    BitSetParallelFor( mesh.topology.getValidFaces(), [&] ( FaceId f )
+
+    Mesh cpyMesh;
+    const Mesh* targetMesh{ &mesh };
+    EdgeBitSet outHoles;
+    if ( params.virtualFillHoles && mesh.topology.findNumHoles( &outHoles ) > 0 )
+    {
+        cpyMesh = mesh;
+        targetMesh = &cpyMesh;
+        auto sb = subprogress( params.cb, 0.0f, 0.5f );
+        int i = 0;
+        int num = int( outHoles.count() );
+        auto metric = getMinAreaMetric( mesh );
+        for ( auto e : outHoles )
+        {
+            ++i;
+            fillHole( cpyMesh, e, { .metric = metric } ); // use simplest filling
+            if ( !reportProgress( sb, float( i ) / float( num ) ) )
+                return unexpectedOperationCanceled();
+        }
+    }
+
+    auto sb = subprogress( params.cb, targetMesh == &mesh ? 0.0f : 0.5f, 1.0f );
+
+    auto keepGoing = BitSetParallelFor( mesh.topology.getValidFaces(), [&] ( FaceId f )
     {
         auto normal = Vector3d( mesh.normal( f ) );
         auto triCenter = Vector3d( mesh.triCenter( f ) );
@@ -323,26 +346,36 @@ FaceBitSet findDisorientedFaces( const Mesh& mesh )
                 ++counter;
             return true;
         };
-        rayMeshIntersectAll( mesh, Line3d( triCenter, normal ), interPred );
+        rayMeshIntersectAll( *targetMesh, Line3d( triCenter, normal ), interPred );
         bool pValid = counter % 2 == 0;
         auto pCounter = counter;
-        counter = 0;
-        rayMeshIntersectAll( mesh, Line3d( triCenter, -normal ), interPred );
-        bool nValid = counter % 2 == 1;
-        auto nCounter = counter - 1; // ideal face has 0-pCounter and 1-nCounter: so we decrement nCounter for fair compare
-
-        bool valid = pValid;
-        if ( pValid != nValid )
+        bool nValid = true;
+        int nCounter = INT_MAX;
+        bool resValid = pValid;
+        if ( params.mode != FindDisorientationParams::RayMode::Positive )
         {
-            if ( pCounter == nCounter )
-                valid = true;
-            else if ( nCounter < pCounter )
-                valid = nValid;
+            counter = 0;
+            rayMeshIntersectAll( *targetMesh, Line3d( triCenter, -normal ), interPred );
+            nValid = counter % 2 == 1;
+            nCounter = counter - 1; // ideal face has 0-pCounter and 1-nCounter: so we decrement nCounter for fair compare
+
+            resValid = pValid && nValid;
+            if ( params.mode == FindDisorientationParams::RayMode::Shallowest && pValid != nValid )
+            {
+                if ( pCounter == nCounter )
+                    resValid = true;
+                else if ( nCounter < pCounter )
+                    resValid = nValid;
+            }
         }
 
-        if ( valid )
+        if ( resValid )
             disorientedFaces.reset( f );
-    } );
+    }, sb );
+
+    if ( !keepGoing )
+        return unexpectedOperationCanceled();
+
     return disorientedFaces;
 }
 
@@ -350,7 +383,7 @@ void fixMultipleEdges( Mesh & mesh, const std::vector<MultipleEdge> & multipleEd
 {
     if ( multipleEdges.empty() )
         return;
-    MR_TIMER
+    MR_TIMER;
     MR_WRITER( mesh )
 
     for ( const auto & mE : multipleEdges )
@@ -375,7 +408,7 @@ void fixMultipleEdges( Mesh & mesh )
 
 Expected<FaceBitSet> findDegenerateFaces( const MeshPart& mp, float criticalAspectRatio, ProgressCallback cb )
 {
-    MR_TIMER
+    MR_TIMER;
     FaceBitSet res( mp.mesh.topology.faceSize() );
     auto completed = BitSetParallelFor( mp.mesh.topology.getFaceIds( mp.region ), [&] ( FaceId f )
     {
@@ -393,7 +426,7 @@ Expected<FaceBitSet> findDegenerateFaces( const MeshPart& mp, float criticalAspe
 
 Expected<UndirectedEdgeBitSet> findShortEdges( const MeshPart& mp, float criticalLength, ProgressCallback cb )
 {
-    MR_TIMER
+    MR_TIMER;
     const auto criticalLengthSq = sqr( criticalLength );
     UndirectedEdgeBitSet res( mp.mesh.topology.undirectedEdgeSize() );
     auto completed = BitSetParallelForAll( res, [&] ( UndirectedEdgeId ue )
@@ -402,7 +435,7 @@ Expected<UndirectedEdgeBitSet> findShortEdges( const MeshPart& mp, float critica
             return;
         if ( mp.mesh.edgeLengthSq( ue ) <= criticalLengthSq )
             res.set( ue );
-    }, cb );    
+    }, cb );
 
     if ( !completed )
         return unexpectedOperationCanceled();
@@ -463,7 +496,7 @@ void eliminateDoubleTrisAround( MeshTopology & topology, VertId v, FaceBitSet * 
                 break; // full ring has been inspected
             continue;
         }
-    } 
+    }
 }
 
 bool isDegree3Dest( const MeshTopology& topology, EdgeId e )
@@ -491,7 +524,7 @@ EdgeId eliminateDegree3Dest( MeshTopology& topology, EdgeId e, FaceBitSet * regi
 
 int eliminateDegree3Vertices( MeshTopology& topology, VertBitSet & region, FaceBitSet * fs )
 {
-    MR_TIMER
+    MR_TIMER;
     auto candidates = region;
     int res = 0;
     for (;;)
@@ -537,7 +570,7 @@ EdgeId isVertexRepeatedOnHoleBd( const MeshTopology& topology, VertId v )
 
 VertBitSet findRepeatedVertsOnHoleBd( const MeshTopology& topology )
 {
-    MR_TIMER
+    MR_TIMER;
     const auto holeRepresEdges = topology.findHoleRepresentiveEdges();
 
     VertBitSet res;
@@ -579,7 +612,7 @@ static void findHoleComplicatingFaces( const Mesh & mesh, VertId v, std::vector<
 {
     EdgeId bd;
     float bdAngle = -1;
-    
+
     auto angle = [&]( EdgeId e )
     {
         assert( !mesh.topology.left( e ) );
@@ -622,7 +655,7 @@ static void findHoleComplicatingFaces( const Mesh & mesh, VertId v, std::vector<
 
 FaceBitSet findHoleComplicatingFaces( const Mesh & mesh )
 {
-    MR_TIMER
+    MR_TIMER;
 
     tbb::enumerable_thread_specific<std::vector<FaceId>> threadData;
     BitSetParallelFor( findRepeatedVertsOnHoleBd( mesh.topology ), [&]( VertId v )
@@ -641,6 +674,81 @@ FaceBitSet findHoleComplicatingFaces( const Mesh & mesh )
         for ( FaceId f : fs )
             res.set( f );
     return res;
+}
+
+void fixMeshCreases( Mesh& mesh, const FixCreasesParams& params )
+{
+    for ( int iter = 0; iter < params.maxIters; ++iter )
+    {
+        auto creases = mesh.findCreaseEdges( params.creaseAngle );
+        if ( creases.none() )
+            return;
+
+        FaceBitSet fixFacesBuffer( mesh.topology.getValidFaces().size() );
+        for ( auto ue : creases )
+        {
+            if ( mesh.topology.isLoneEdge( EdgeId( ue ) ) )
+                continue;
+            auto findBadFaces = [&] ( EdgeId ce, bool left )
+            {
+                for ( auto e = ce;; )
+                {
+                    auto f = left ? mesh.topology.left( e ) : mesh.topology.right( e );
+                    if ( !f )
+                        return;
+                    fixFacesBuffer.autoResizeSet( f ); // as far as we triangulate holes - new faces might appear, so we need to resize
+                    e = left ? mesh.topology.next( e ) : mesh.topology.prev( e );
+                    if ( e == ce )
+                        return; // full cycle
+                    auto nextF = left ? mesh.topology.left( e ) : mesh.topology.right( e );
+                    if ( !nextF )
+                        return;
+                    if ( creases.test( e.undirected() ) )
+                        continue;
+                    if ( mesh.triangleAspectRatio( f ) > params.criticalTriAspectRatio || mesh.triangleAspectRatio( nextF ) > params.criticalTriAspectRatio )
+                        continue;
+                    auto digAngCos = mesh.dihedralAngleCos( e.undirected() );
+                    if ( digAngCos < params.planarCritCos )
+                        return; // stop propagation on sharp angle
+                }
+            };
+
+            int numIncidentLCreases = 0;
+            int numIncidentRCreases = 0;
+            auto creaseEdge = EdgeId( ue );
+            for ( auto e : orgRing( mesh.topology, creaseEdge ) )
+            {
+                if ( creases.test( e.undirected() ) )
+                    numIncidentLCreases++;
+            }
+            for ( auto e : orgRing( mesh.topology, creaseEdge.sym() ) )
+            {
+                if ( creases.test( e.undirected() ) )
+                    numIncidentRCreases++;
+            }
+            if ( ( numIncidentRCreases > numIncidentLCreases )
+                || ( numIncidentRCreases == numIncidentLCreases &&
+                    mesh.topology.getOrgDegree( creaseEdge ) < mesh.topology.getOrgDegree( creaseEdge.sym() ) ) )
+            {
+                creaseEdge = creaseEdge.sym();// important part to triangulate worse end of the edge (mb we should change degree check to area check?)
+            }
+            fixFacesBuffer.reset();
+            findBadFaces( creaseEdge, true );
+            findBadFaces( creaseEdge, false );
+            if ( fixFacesBuffer.none() )
+                continue;
+
+            auto loops = delRegionKeepBd( mesh, fixFacesBuffer, true );
+            for ( const auto& loop : loops )
+            {
+                int i = 0;
+                while ( i < loop.size() && mesh.topology.left( loop[i] ) ) ++i;
+                if ( i == loop.size() )
+                    continue;
+                fillHole( mesh, loop[i], { .metric = getMinAreaMetric( mesh ) } );
+            }
+        }
+    }
 }
 
 } //namespace MR
