@@ -49,6 +49,9 @@ class ShortcutManager;
 struct ShortcutKey;
 enum class ShortcutCategory : char;
 
+class DirectionWidget;
+class PlaneWidget;
+
 class TouchpadController;
 struct TouchpadParameters;
 class SpaceMouseController;
@@ -69,6 +72,8 @@ struct PointOnObject;
 
 using ObjAndPick = std::pair<std::shared_ptr<MR::VisualObject>, MR::PointOnObject>;
 using ConstObjAndPick = std::pair<std::shared_ptr<const MR::VisualObject>, MR::PointOnObject>;
+
+using RequirementsFunction = std::function<std::string( const std::shared_ptr<RibbonMenuItem>& )>;
 
 // this is needed as far as MAKE_SLOT cannot be used with movable classes
 #define MR_DELETE_MOVE(ClassName)\

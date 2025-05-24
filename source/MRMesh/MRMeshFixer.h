@@ -110,8 +110,41 @@ MRMESH_API int eliminateDegree3Vertices( MeshTopology& topology, VertBitSet & re
 /// deleting such faces simplifies the holes and makes them easier to fill
 [[nodiscard]] MRMESH_API FaceBitSet findHoleComplicatingFaces( const Mesh & mesh );
 
+/// Parameters structure for `fixMeshCreases` function
+struct FixCreasesParams
+{
+    /// edges with dihedral angle sharper this will be considered as creases
+    float creaseAngle = PI_F * 175.0f / 180.0f;
+
+    /// planar check is skipped for faces with worse aspect ratio
+    float criticalTriAspectRatio = 1e3f;
+
+    /// maximum number of algorithm iterations
+    int maxIters = 10;
+};
+
+/// Finds creases edges and re-triangulates planar areas around them, useful to fix double faces
+MRMESH_API void fixMeshCreases( Mesh& mesh, const FixCreasesParams& params = {} );
+
+/// Parameters for `findDisorientedFaces` function
+struct FindDisorientationParams
+{
+    /// Mode of detecting disoriented face
+    enum class RayMode
+    {
+        Positive, ///< positive (normal) direction of face should have even number of intersections
+        Shallowest, ///< positive or negative (normal or -normal) direction (the one with lowest number of intersections) should have even/odd number of intersections
+        Both ///< both direction should have correct number of intersections (positive - even; negative - odd)
+    } mode{ RayMode::Shallowest };
+
+    /// if set - copy mesh, and fills holes for better quality in case of ray going out through hole
+    bool virtualFillHoles{ true };
+
+    ProgressCallback cb;
+};
+
 /// returns all faces that are oriented inconsistently, based on number of ray intersections
-[[nodiscard]] MRMESH_API FaceBitSet findDisorientedFaces( const Mesh& mesh );
+[[nodiscard]] MRMESH_API Expected<FaceBitSet> findDisorientedFaces( const Mesh& mesh, const FindDisorientationParams& params = {} );
 
 
 /// \}
