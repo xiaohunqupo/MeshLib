@@ -15,7 +15,7 @@ namespace MR
 
 Expected<SimpleVolumeMinMax> meshToDistanceVolume( const MeshPart& mp, const MeshToDistanceVolumeParams& cParams /*= {} */ )
 {
-    MR_TIMER
+    MR_TIMER;
     if ( cParams.dist.signMode == SignDetectionMode::OpenVDB )
     {
         MeshToVolumeParams m2vPrams
@@ -52,7 +52,7 @@ Expected<SimpleVolumeMinMax> meshToDistanceVolume( const MeshPart& mp, const Mes
             params.fwn = std::make_shared<FastWindingNumber>( mp.mesh );
         assert( !mp.region ); // only whole mesh is supported for now
         auto basis = AffineXf3f( Matrix3f::scale( params.vol.voxelSize ), params.vol.origin + 0.5f * params.vol.voxelSize );
-        if ( auto d = params.fwn->calcFromGridWithDistances( res.data, res.dims, basis, params.dist, params.vol.cb ); !d )
+        if ( auto d = params.fwn->calcFromGridWithDistances( res.data.vec_, res.dims, basis, params.dist, params.vol.cb ); !d )
         {
             return unexpected( std::move( d.error() ) );
         }
@@ -67,7 +67,7 @@ Expected<SimpleVolumeMinMax> meshToDistanceVolume( const MeshPart& mp, const Mes
 
 FunctionVolume meshToDistanceFunctionVolume( const MeshPart& mp, const MeshToDistanceVolumeParams& params )
 {
-    MR_TIMER
+    MR_TIMER;
     assert( params.dist.signMode != SignDetectionMode::OpenVDB );
 
     // prepare all trees before returned function will be called from parallel threads
@@ -92,7 +92,7 @@ FunctionVolume meshToDistanceFunctionVolume( const MeshPart& mp, const MeshToDis
 Expected<SimpleVolumeMinMax> meshRegionToIndicatorVolume( const Mesh& mesh, const FaceBitSet& region,
     float offset, const DistanceVolumeParams& params )
 {
-    MR_TIMER
+    MR_TIMER;
     if ( !region.any() )
     {
         assert( false );
@@ -109,12 +109,12 @@ Expected<SimpleVolumeMinMax> meshRegionToIndicatorVolume( const Mesh& mesh, cons
     const FaceBitSet notRegion = mesh.topology.getValidFaces() - region;
     //TODO: check that notRegion is not empty
     AABBTree notRegionTree( { mesh, &notRegion } );
-    
+
     const auto voxelSize = std::max( { params.voxelSize.x, params.voxelSize.y, params.voxelSize.z } );
 
-    if ( !ParallelFor( size_t( 0 ), indexer.size(), [&]( size_t i )
+    if ( !ParallelFor( 0_vox, indexer.endId(), [&]( VoxelId i )
     {
-        const auto coord = Vector3f( indexer.toPos( VoxelId( i ) ) ) + Vector3f::diagonal( 0.5f );
+        const auto coord = Vector3f( indexer.toPos( i ) ) + Vector3f::diagonal( 0.5f );
         auto voxelCenter = params.origin + mult( params.voxelSize, coord );
 
         // minimum of given offset distance parameter and the distance to not-region part of mesh
@@ -135,7 +135,7 @@ Expected<SimpleVolumeMinMax> meshRegionToIndicatorVolume( const Mesh& mesh, cons
 
 Expected<std::array<SimpleVolumeMinMax, 3>> meshToDirectionVolume( const MeshToDirectionVolumeParams& params )
 {
-    MR_TIMER
+    MR_TIMER;
     VolumeIndexer indexer( params.vol.dimensions );
     std::vector<MeshProjectionResult> projs;
 

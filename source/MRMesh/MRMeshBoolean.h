@@ -46,6 +46,8 @@ struct BooleanResult
 * 
   * \ingroup BooleanGroup
   * Makes new mesh - result of boolean operation on mesh `A` and mesh `B`
+  * \snippet cpp-examples/MeshBoolean.dox.cpp 0
+  *
   * \param meshA Input mesh `A`
   * \param meshB Input mesh `B`
   * \param operation CSG operation to perform
@@ -75,17 +77,28 @@ struct BooleanParameters
 {
     /// Transform from mesh `B` space to mesh `A` space
     const AffineXf3f* rigidB2A = nullptr;
+    
     /// Optional output structure to map mesh `A` and mesh `B` topology to result mesh topology
     BooleanResultMapper* mapper = nullptr;
+    
     /// Optional precut output of meshA, if present - does not perform boolean and just return them
     BooleanPreCutResult* outPreCutA = nullptr;
+    
     /// Optional precut output of meshB, if present - does not perform boolean and just return them
     BooleanPreCutResult* outPreCutB = nullptr;
+    
     /// Optional output cut edges of booleaned meshes 
     std::vector<EdgeLoop>* outCutEdges = nullptr;
+    
     /// By default produce valid operation on disconnected components
     /// if set merge all non-intersecting components
     bool mergeAllNonIntersectingComponents = false;
+    
+    /// If this option is enabled boolean will try to cut meshes even if there are self-intersections in intersecting area
+    /// it might work in some cases, but in general it might prevent fast error report and lead to other errors along the way
+    /// \warning not recommended in most cases
+    bool forceCut = false;
+    
     ProgressCallback cb = {};
 };
 
@@ -94,6 +107,9 @@ MRMESH_API BooleanResult boolean( const Mesh& meshA, const Mesh& meshB, BooleanO
 MRMESH_API BooleanResult boolean( Mesh&& meshA, Mesh&& meshB, BooleanOperation operation,
                                   const BooleanParameters& params = {} );
 
+/// performs boolean operation on mesh with itself, cutting simple intersections contours and flipping their connectivity
+/// this function is experimental and likely to change signature and/or behavior in future 
+MRMESH_API Expected<Mesh> selfBoolean( const Mesh& mesh );
 
 /// returns intersection contours of given meshes
 MRMESH_API Contours3f findIntersectionContours( const Mesh& meshA, const Mesh& meshB, const AffineXf3f* rigidB2A = nullptr );

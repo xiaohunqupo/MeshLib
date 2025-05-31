@@ -14,6 +14,7 @@
 #pragma clang diagnostic ignored "-Wdeprecated-anon-enum-enum-conversion"
 #pragma clang diagnostic ignored "-Wunknown-warning-option" // for next one
 #pragma clang diagnostic ignored "-Wunused-but-set-variable" // for newer clang
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #include <Eigen/SparseCore>
 #include <Eigen/SparseCholesky>
 #pragma clang diagnostic pop
@@ -44,7 +45,7 @@ private:
 
 void Solver::prepare( const MeshTopology & topology, float guideWeight )
 {
-    MR_TIMER
+    MR_TIMER;
     topology_ = &topology;
     guideWeight_ = guideWeight;
     std::vector< Eigen::Triplet<double> > mTriplets;
@@ -90,7 +91,7 @@ void Solver::prepare( const MeshTopology & topology, float guideWeight )
 
 void Solver::run( const VertCoords & guide, const FaceNormals & normals, VertCoords & points, float maxInitialDistSq )
 {
-    MR_TIMER
+    MR_TIMER;
     assert( topology_ );
     if ( !topology_ )
         return;

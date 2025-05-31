@@ -16,7 +16,7 @@ class BallRadiusAssessor
 public:
     explicit BallRadiusAssessor( const DistanceFromWeightedPointsComputeParams& params )
         : params_( params )
-        , maxSearchRadius_( params.maxDistance + params.maxWeight )
+        , maxSearchRadius_( params.maxBidirDist + params.maxWeight )
         , maxLocWeight_ ( params.maxWeight )
     {
     }
@@ -41,7 +41,7 @@ private:
 bool BallRadiusAssessor::pointFound( float r, float w )
 {
     assert( r >= 0 );
-    assert( w <= params_.maxWeight );
+    //assert( w <= params_.maxWeight ); // commented due to possible intepolation errors
     assert( w <= maxLocWeight_ + r * params_.maxWeightGrad );
     if ( params_.maxWeightGrad < 1 )
     {
@@ -51,8 +51,8 @@ bool BallRadiusAssessor::pointFound( float r, float w )
         {
             // try to reduce search radius knowing that the weights of nearby points are limited by known gradient
             maxLocWeight_ = locWeight;
-            const auto searchRadius = ( params_.maxDistance + maxLocWeight_ ) / ( 1 - params_.maxWeightGrad );
-            assert( searchRadius >= 0 ); // if params_.maxDistance + maxLocWeight_ >= 0 and params_.maxWeightGrad < 1
+            const auto searchRadius = ( params_.maxBidirDist + maxLocWeight_ ) / ( 1 - params_.maxWeightGrad );
+            assert( searchRadius >= 0 ); // if params_.maxBidirDist + maxLocWeight_ >= 0 and params_.maxWeightGrad < 1
             if ( searchRadius < maxSearchRadius_ )
             {
                 maxSearchRadius_ = searchRadius;
@@ -70,7 +70,7 @@ struct ClosestTriPoint
     float w = 0;
 };
 
-std::optional<ClosestTriPoint> findClosestWeightedTriPoint( const Vector3d& locd, const Mesh& mesh, FaceId f, const VertMetric& pointWeight )
+std::optional<ClosestTriPoint> findClosestWeightedTriPoint( const Vector3d& locd, const Mesh& mesh, FaceId f, const VertMetric& pointWeight, bool bidirectionalMode )
 {
     auto vs = mesh.topology.getTriVerts( f );
 
@@ -83,7 +83,8 @@ std::optional<ClosestTriPoint> findClosestWeightedTriPoint( const Vector3d& locd
         ws[i] = pointWeight( vs[i] );
     }
 
-    const auto maybePlane = ( dot( locd - ps[0], dirDblArea( ps ) ) >= 0 ) ?
+    // considering unsigned distances, each triangle has two planes where euclidean distance equals interpolated point weight
+    const auto maybePlane = ( !bidirectionalMode || dot( locd - ps[0], dirDblArea( ps ) ) >= 0 ) ?
         tangentPlaneToSpheres( ps[0], ps[1], ps[2], ws[0], ws[1], ws[2] ) :
         tangentPlaneToSpheres( ps[1], ps[0], ps[2], ws[1], ws[0], ws[2] );
     if ( !maybePlane )
@@ -108,12 +109,12 @@ std::optional<ClosestTriPoint> findClosestWeightedTriPoint( const Vector3d& locd
 PointAndDistance findClosestWeightedPoint( const Vector3f & loc,
     const AABBTreePoints& tree, const DistanceFromWeightedPointsComputeParams& params )
 {
-    assert( params.minDistance <= params.maxDistance );
-    assert( params.maxDistance >= 0 );
+    assert( !params.bidirectionalMode || params.minBidirDist <= params.maxBidirDist );
+    assert( params.maxBidirDist + params.maxWeight >= 0 );
     assert( params.maxWeightGrad >= 0 );
     // if params.maxWeightGrad == 0 then you need to find euclidean closest point - a much simpler algorithm than below
 
-    PointAndDistance res{ .dist = params.maxDistance };
+    PointAndDistance res{ .dist = params.maxBidirDist };
     assert( params.pointWeight );
     if ( !params.pointWeight )
         return res;
@@ -130,7 +131,7 @@ PointAndDistance findClosestWeightedPoint( const Vector3f & loc,
         {
             res.dist = dist;
             res.vId = found.vId;
-            if ( dist < params.minDistance )
+            if ( params.bidirectionalMode && dist < params.minBidirDist )
                 return Processing::Stop;
         }
         if ( ballRadiusAssessor.pointFound( r, w ) )
@@ -143,7 +144,8 @@ PointAndDistance findClosestWeightedPoint( const Vector3f & loc,
 MeshPointAndDistance findClosestWeightedMeshPoint( const Vector3f& loc,
     const Mesh& mesh, const DistanceFromWeightedPointsComputeParams& params )
 {
-    MeshPointAndDistance res{ .dist = params.maxDistance };
+    MeshPointAndDistance res{ .eucledeanDist = params.maxBidirDist };
+    assert( res.bidirDist() == params.maxBidirDist );
     assert( params.pointWeight );
     if ( !params.pointWeight )
         return res;
@@ -154,20 +156,27 @@ MeshPointAndDistance findClosestWeightedMeshPoint( const Vector3f& loc,
     const Vector3d locd( loc );
     findBoxedTrisInBall( mesh, { loc, sqr( ballRadiusAssessor.maxSearchRadius() ) }, [&]( FaceId f, Ball3f & ball )
     {
-        auto c = findClosestWeightedTriPoint( locd, mesh, f, params.pointWeight );
+        auto c = findClosestWeightedTriPoint( locd, mesh, f, params.pointWeight, params.bidirectionalMode );
         if ( !c )
             return Processing::Continue;
 
-        const auto r = distance( loc, c->pos );
-        const auto dist = r - c->w;
-        if ( dist < res.dist )
+        const auto mtp = MeshTriPoint{ mesh.topology.edgeWithLeft( f ), c->tp };
+        const MeshPointAndDistance candidate
         {
-            res.dist = dist;
-            res.mtp = MeshTriPoint{ mesh.topology.edgeWithLeft( f ), c->tp };
-            if ( dist < params.minDistance )
+            .loc = loc,
+            .mtp = mtp,
+            .eucledeanDist = distance( loc, c->pos ),
+            .w = c->w,
+            .bidirectionalOrOutside = params.bidirectionalMode || dot( mesh.pseudonormal( mtp ), loc - c->pos ) >= 0
+        };
+        if ( candidate < res )
+        {
+            assert( candidate.bidirDist() < params.maxBidirDist );
+            res = candidate;
+            if ( params.bidirectionalMode && res.dist() < params.minBidirDist )
                 return Processing::Stop;
         }
-        if ( ballRadiusAssessor.pointFound( r, c->w ) )
+        if ( ballRadiusAssessor.pointFound( candidate.eucledeanDist, c->w ) )
             ball.radiusSq = sqr( ballRadiusAssessor.maxSearchRadius() );
         return Processing::Continue;
     } );

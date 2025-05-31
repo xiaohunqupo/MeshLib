@@ -111,8 +111,7 @@ bool preparePart( const Mesh& origin, std::vector<EdgePath>& cutPaths, Mesh& out
     auto compsMap = MeshComponents::getAllComponentsMap( origin );
     leftPart = preparePart( origin, compsMap, leftPart, otherMesh, needInsidePart, originIsA, rigidB2A, mergeAllNonIntersectingComponents, intParams );
 
-    outMesh.addMeshPart( { origin, &leftPart }, needFlip, {}, {},
-        HashToVectorMappingConverter( origin.topology, fMapPtr, vMapPtr, eMapPtr ).getPartMapping() );
+    outMesh.addMeshPart( { origin, &leftPart }, needFlip, {}, {}, Src2TgtMaps( fMapPtr, vMapPtr, eMapPtr ) );
 
     for ( auto& path : cutPaths )
         for ( auto& e : path )
@@ -145,11 +144,9 @@ void connectPreparedParts( Mesh& partA, Mesh& partB, bool pathsHaveLeftHole,
     else
     {
         if ( !pathsHaveLeftHole )
-            partA.addMeshPart( partB, false, pathsA, pathsB,
-                HashToVectorMappingConverter( partB.topology, fMapNewPtr, vMapNewPtr, eMapNewPtr ).getPartMapping() );
+            partA.addMeshPart( partB, false, pathsA, pathsB, Src2TgtMaps( fMapNewPtr, vMapNewPtr, eMapNewPtr ) );
         else
-            partB.addMeshPart( partA, false, pathsB, pathsA,
-                HashToVectorMappingConverter( partA.topology, fMapNewPtr, vMapNewPtr, eMapNewPtr ).getPartMapping() );
+            partB.addMeshPart( partA, false, pathsB, pathsA, Src2TgtMaps( fMapNewPtr, vMapNewPtr, eMapNewPtr ) );
     }
 
     if ( mapper )
@@ -174,6 +171,7 @@ void connectPreparedParts( Mesh& partA, Mesh& partB, bool pathsHaveLeftHole,
 Mesh doTrivialBooleanOperation( Mesh&& meshACut, Mesh&& meshBCut, BooleanOperation operation, const AffineXf3f* rigidB2A, BooleanResultMapper* mapper, 
     bool mergeAllNonIntersectingComponents, const BooleanInternalParameters& intParams )
 {
+    MR_TIMER;
     Mesh aPart, bPart;
     FaceBitSet aPartFbs, bPartFbs;
     std::pair<Face2RegionMap,int> aComponentsMap, bComponentsMap;
@@ -197,24 +195,24 @@ Mesh doTrivialBooleanOperation( Mesh&& meshACut, Mesh&& meshBCut, BooleanOperati
         bPartFbs = preparePart( meshBCut, bComponentsMap, {}, meshACut, true, false, rigidB2A, mergeAllNonIntersectingComponents, intParams );
     taskGroup.wait();
 
-    if ( aPartFbs.count() != 0 )
+    if ( aPartFbs.any() )
     {
         FaceMap* fMapPtr = mapper ? &mapper->maps[int( BooleanResultMapper::MapObject::A )].cut2newFaces : nullptr;
         WholeEdgeMap* eMapPtr = mapper ? &mapper->maps[int( BooleanResultMapper::MapObject::A )].old2newEdges : nullptr;
         VertMap* vMapPtr = mapper ? &mapper->maps[int( BooleanResultMapper::MapObject::A )].old2newVerts : nullptr;
 
         aPart.addMeshPart( { meshACut, &aPartFbs }, operation == BooleanOperation::DifferenceBA,
-                             {}, {}, HashToVectorMappingConverter( meshACut.topology, fMapPtr, vMapPtr, eMapPtr ).getPartMapping() );
+                             {}, {}, Src2TgtMaps( fMapPtr, vMapPtr, eMapPtr ) );
     }
 
-    if ( bPartFbs.count() != 0 )
+    if ( bPartFbs.any() )
     {
         FaceMap* fMapPtr = mapper ? &mapper->maps[int( BooleanResultMapper::MapObject::B )].cut2newFaces : nullptr;
         WholeEdgeMap* eMapPtr = mapper ? &mapper->maps[int( BooleanResultMapper::MapObject::B )].old2newEdges : nullptr;
         VertMap* vMapPtr = mapper ? &mapper->maps[int( BooleanResultMapper::MapObject::B )].old2newVerts : nullptr;
 
         bPart.addMeshPart( { meshBCut, &bPartFbs }, operation == BooleanOperation::DifferenceAB,
-                             {}, {}, HashToVectorMappingConverter( meshBCut.topology, fMapPtr, vMapPtr, eMapPtr ).getPartMapping() );
+                             {}, {}, Src2TgtMaps( fMapPtr, vMapPtr, eMapPtr ) );
     }
 
     connectPreparedParts( aPart, bPart, false, {}, {}, rigidB2A, mapper );
@@ -363,7 +361,8 @@ VertBitSet BooleanResultMapper::map( const VertBitSet& oldBS, MapObject obj ) co
 
 FaceBitSet BooleanResultMapper::newFaces() const
 {
-    FaceBitSet res( std::max( maps[0].cut2newFaces.size(), maps[1].cut2newFaces.size() ) );
+    FaceBitSet res;
+    res.reserve( std::max( maps[0].cut2newFaces.size(), maps[1].cut2newFaces.size() ) );
     for ( const auto& map : maps )
     {
         for ( FaceId newF = 0_f; newF < map.cut2origin.size(); ++newF )

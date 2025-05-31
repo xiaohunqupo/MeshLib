@@ -9,16 +9,16 @@ namespace MR
 
 Expected<SimpleVolumeMinMax> functionVolumeToSimpleVolume( const FunctionVolume& volume, const ProgressCallback& cb )
 {
-    MR_TIMER
+    MR_TIMER;
     SimpleVolumeMinMax res;
     res.voxelSize = volume.voxelSize;
     res.dims = volume.dims;
     VolumeIndexer indexer( res.dims );
     res.data.resize( indexer.size() );
 
-    if ( !ParallelFor( size_t( 0 ), indexer.size(), [&]( size_t i )
+    if ( !ParallelFor( 0_vox, indexer.endId(), [&]( VoxelId i )
     {
-        res.data[i] = volume.data( indexer.toPos( VoxelId( i ) ) );
+        res.data[i] = volume.data( indexer.toPos( i ) );
     }, cb ) )
         return unexpectedOperationCanceled();
 

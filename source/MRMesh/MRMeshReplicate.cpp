@@ -12,6 +12,7 @@
 #pragma clang diagnostic ignored "-Wdeprecated-anon-enum-enum-conversion"
 #pragma clang diagnostic ignored "-Wunknown-warning-option" // for next one
 #pragma clang diagnostic ignored "-Wunused-but-set-variable" // for newer clang
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #include <Eigen/SparseCore>
 #include <Eigen/SparseCholesky>
 #pragma clang diagnostic pop
@@ -22,7 +23,7 @@ namespace MR
 
 void replicateZ( Mesh & m, const Mesh & target )
 {
-    MR_TIMER
+    MR_TIMER;
 
     const auto szM = m.topology.numValidVerts();
     const auto szT =  target.topology.numValidVerts();

@@ -34,7 +34,9 @@ struct Vector3
     constexpr Vector3() noexcept : x( 0 ), y( 0 ), z( 0 ) { }
     explicit Vector3( NoInit ) noexcept { }
     constexpr Vector3( T x, T y, T z ) noexcept : x( x ), y( y ), z( z ) { }
-    explicit constexpr Vector3( const Vector2<T> & v ) noexcept : x( v.x ), y( v.y ), z( 0 ) { }
+
+    template <typename U> MR_REQUIRES_IF_SUPPORTED( std::constructible_from<T, U> )
+    explicit constexpr Vector3( const Vector2<U> & v ) noexcept : x( v.x ), y( v.y ), z( 0 ) { }
 
     static constexpr Vector3 diagonal( T a ) noexcept { return Vector3( a, a, a ); }
     static constexpr Vector3 plusX() noexcept { return Vector3( 1, 0, 0 ); }
@@ -114,10 +116,10 @@ struct Vector3
             return b * ( 1 / a );
     }
 
-    friend constexpr Vector3<T> & operator +=( Vector3<T> & a, const Vector3<T> & b ) MR_REQUIRES_IF_SUPPORTED( requires{ a + b; } ) { a.x += b.x; a.y += b.y; a.z += b.z; return a; }
-    friend constexpr Vector3<T> & operator -=( Vector3<T> & a, const Vector3<T> & b ) MR_REQUIRES_IF_SUPPORTED( requires{ a - b; } ) { a.x -= b.x; a.y -= b.y; a.z -= b.z; return a; }
-    friend constexpr Vector3<T> & operator *=( Vector3<T> & a,               T    b ) MR_REQUIRES_IF_SUPPORTED( requires{ a * b; } ) { a.x *= b; a.y *= b; a.z *= b; return a; }
-    friend constexpr Vector3<T> & operator /=( Vector3<T> & a,               T    b ) MR_REQUIRES_IF_SUPPORTED( requires{ a / b; } )
+    friend constexpr Vector3<T> & operator +=( Vector3<T> & a, const Vector3<T> & b ) { a.x += b.x; a.y += b.y; a.z += b.z; return a; }
+    friend constexpr Vector3<T> & operator -=( Vector3<T> & a, const Vector3<T> & b ) { a.x -= b.x; a.y -= b.y; a.z -= b.z; return a; }
+    friend constexpr Vector3<T> & operator *=( Vector3<T> & a,               T    b ) { a.x *= b; a.y *= b; a.z *= b; return a; }
+    friend constexpr Vector3<T> & operator /=( Vector3<T> & a,               T    b )
     {
         if constexpr ( std::is_integral_v<T> )
             { a.x /= b; a.y /= b; a.z /= b; return a; }

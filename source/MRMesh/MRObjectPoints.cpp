@@ -20,7 +20,7 @@ ObjectPoints::ObjectPoints( const ObjectMesh& objMesh, bool saveNormals/*=true*/
         return;
 
     const auto verts = getInnerVerts( objMesh.mesh()->topology, objMesh.getSelectedFaces() );
-    setPointCloud( std::make_shared<PointCloud>( meshToPointCloud( *objMesh.mesh(), saveNormals, verts.count() > 0 ? &verts : nullptr) ) );
+    setPointCloud( std::make_shared<PointCloud>( meshToPointCloud( *objMesh.mesh(), saveNormals, verts.any() ? &verts : nullptr) ) );
     setName( objMesh.name() + " Points" );
     setVertsColorMap( objMesh.getVertsColorMap() );
     setFrontColor( objMesh.getFrontColor( true ), true );
@@ -136,7 +136,7 @@ void ObjectPoints::serializeFields_( Json::Value& root ) const
 
 std::shared_ptr<ObjectPoints> merge( const std::vector<std::shared_ptr<ObjectPoints>>& objsPoints )
 {
-    MR_TIMER
+    MR_TIMER;
     auto pointCloud = std::make_shared<PointCloud>();
     auto& points = pointCloud->points;
 
@@ -217,7 +217,7 @@ std::shared_ptr<MR::ObjectPoints> cloneRegion( const std::shared_ptr<ObjectPoint
 
 std::shared_ptr<ObjectPoints> pack( const ObjectPoints& pts, Reorder reorder, VertBitSet* newValidVerts, const ProgressCallback & cb )
 {
-    MR_TIMER
+    MR_TIMER;
     if ( !pts.pointCloud() )
     {
         assert( false );

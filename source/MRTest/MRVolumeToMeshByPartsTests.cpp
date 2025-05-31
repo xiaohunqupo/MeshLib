@@ -143,7 +143,7 @@ TEST( MRMesh, volumeToMeshByParts )
     {
         ParallelFor( 0, zLayersInPart, [&]( int l )
         {
-            size_t i = l * size_t( dimensions.x ) * dimensions.y;
+            VoxelId i( l * size_t( dimensions.x ) * dimensions.y );
             for ( auto y = 0; y < dimensions.y; ++y )
             {
                 for ( auto x = 0; x < dimensions.x; ++x, ++i )
@@ -154,7 +154,8 @@ TEST( MRMesh, volumeToMeshByParts )
                 }
             }
         } );
-        mc.addPart( part );
+        auto e = mc.addPart( part );
+        EXPECT_TRUE( e.has_value() );
     }
     Mesh mesh = Mesh::fromTriMesh( *mc.finalize() );
     EXPECT_NEAR( expectedVolume, mesh.volume(), 0.001f );
