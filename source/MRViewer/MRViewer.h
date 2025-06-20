@@ -31,6 +31,7 @@ class ViewerTitle;
 
 class SpaceMouseHandler;
 
+class CornerControllerObject;
 // This struct contains rules for viewer launch
 struct LaunchParams
 {
@@ -485,7 +486,7 @@ public:
     std::vector<std::string> commandArgs;
 
     std::shared_ptr<ObjectMesh> basisAxes;
-    std::shared_ptr<ObjectMesh> basisViewController;
+    std::unique_ptr<CornerControllerObject> basisViewController;
     std::shared_ptr<ObjectMesh> globalBasisAxes;
     std::shared_ptr<ObjectMesh> rotationSphere;
     // Stores clipping plane mesh
@@ -595,6 +596,12 @@ public:
     [[nodiscard]] const RecentFilesStore &recentFilesStore() const { return *recentFilesStore_; }
     [[nodiscard]] RecentFilesStore &recentFilesStore() { return *recentFilesStore_; }
 
+    /// returns whether to sort the filenames received from Drag&Drop in lexicographical order before adding them in scene
+    [[nodiscard]] bool getSortDroppedFiles() const { return sortDroppedFiles_; }
+
+    /// sets whether to sort the filenames received from Drag&Drop in lexicographical order before adding them in scene
+    void setSortDroppedFiles( bool value ) { sortDroppedFiles_ = value; }
+
 private:
     Viewer();
     ~Viewer();
@@ -692,6 +699,8 @@ private:
     bool dirtyScene_{ false };
 
     bool hasScaledFramebuffer_{ false };
+
+    bool sortDroppedFiles_{ true };
 
     LaunchParams launchParams_;
 
