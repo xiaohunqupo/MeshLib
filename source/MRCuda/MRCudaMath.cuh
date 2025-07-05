@@ -12,16 +12,35 @@ namespace MR
 {
 namespace Cuda
 {
+
+// struct simular to MR::Box2 with minimal needed functions
+struct Box2
+{
+    float2 min;
+    float2 max;
+
+    __device__ float2 getBoxClosestPointTo( const float2& pt ) const
+    {
+        return { clamp( pt.x, min.x, max.x ), clamp( pt.y, min.y, max.y ) };
+    }
+};
+
 // struct simular to MR::Box3 with minimal needed functions
 struct Box3
 {
     float3 min;
     float3 max;
 
+    __device__ bool valid() const
+    {
+        return min.x <= max.x && min.y <= max.y && min.z <= max.z;
+    }
+
     __device__ float3 getBoxClosestPointTo( const float3& pt ) const
     {
         return { clamp( pt.x, min.x, max.x ), clamp( pt.y, min.y, max.y ), clamp( pt.z, min.z, max.z ) };
     }
+
     __device__ void include( const float3& pt )
     {
         if ( pt.x < min.x ) min.x = pt.x;
@@ -30,6 +49,18 @@ struct Box3
         if ( pt.y > max.y ) max.y = pt.y;
         if ( pt.z < min.z ) min.z = pt.z;
         if ( pt.z > max.z ) max.z = pt.z;
+    }
+
+    __device__ Box3 intersection( const Box3& b ) const
+    {
+        Box3 res;
+        res.min.x = fmax( min.x, b.min.x );
+        res.min.y = fmax( min.y, b.min.y );
+        res.min.z = fmax( min.z, b.min.z );
+        res.max.x = fmin( max.x, b.max.x );
+        res.max.y = fmin( max.y, b.max.y );
+        res.max.z = fmin( max.z, b.max.z );
+        return res;
     }
 
     __device__ float3 operator[]( const int i ) const
@@ -48,6 +79,22 @@ struct IntersectionPrecomputes
     int idxY = 1;
     int3 sign;
     float Sx, Sy, Sz;
+};
+
+// struct simular to AABBTreeNode<LineTreeTraits<Vector2f>> with minimal needed functions
+struct Node2
+{
+    Box2 box;
+    int l, r;
+
+    __device__ bool leaf() const
+    {
+        return r < 0;
+    }
+    __device__ int leafId() const
+    {
+        return l;
+    }
 };
 
 // struct simular to AABBTreeNode<FaceTreeTraits3> with minimal needed functions
@@ -368,6 +415,18 @@ __device__ inline bool testBit( const uint64_t* bitSet, const size_t bitNumber )
 __device__ inline void setBit( uint64_t* bitSet, const size_t bitNumber )
 {
     bitSet[bitNumber / 64] += ( 1ull << ( bitNumber % 64 ) );
+}
+
+template <typename T>
+__device__ inline T sqr( T x )
+{
+    return x * x;
+}
+
+template <typename T>
+__device__ inline int sgn( T x )
+{
+    return x > 0 ? 1 : ( x < 0 ? -1 : 0 );
 }
 
 }

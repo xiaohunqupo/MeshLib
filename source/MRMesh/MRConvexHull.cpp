@@ -120,21 +120,9 @@ Mesh makeConvexHull( const VertCoords & points, const VertBitSet & validPoints )
     HashMap<FaceId, std::vector<VertId>> face2verts;
     Heap<double, FaceId> queue{ 2, NoDist };
 
-    // gets plane containing the face with normal looking outwards
-    auto getPlane3d = [&]( FaceId f )
-    {
-        VertId a, b, c;
-        res.topology.getTriVerts( f, a, b, c );
-        assert( a.valid() && b.valid() && c.valid() );
-        const Vector3d ap{ res.points[a] };
-        const Vector3d bp{ res.points[b] };
-        const Vector3d cp{ res.points[c] };
-        return Plane3d::fromDirAndPt( cross( bp - ap, cp - ap ).normalized(), ap );
-    };
-
     // separate all remaining points as above face #0 or face #1
     {
-        const auto pl0 = getPlane3d( 0_f );
+        const auto pl0 = res.getPlane3d( 0_f );
         std::vector<VertId> vs0, vs1;
         double maxDist0 = NoDist, maxDist1 = NoDist;
         for ( VertId v : validPoints )
@@ -190,7 +178,7 @@ Mesh makeConvexHull( const VertCoords & points, const VertBitSet & validPoints )
 
         VertId topmostVert;
         double maxDist = 0;
-        const auto pl = getPlane3d( myFace );
+        const auto pl = res.getPlane3d( myFace );
         for ( auto v : myverts )
         {
             auto dist = pl.distance( Vector3d{ points[v] } );
@@ -225,10 +213,9 @@ Mesh makeConvexHull( const VertCoords & points, const VertBitSet & validPoints )
         newFp.clear();
         for ( EdgeId e : orgRing( res.topology, newv ) )
         {
-            newFp.emplace_back();
-            auto & x = newFp.back();
+            auto & x = newFp.emplace_back();
             x.face = res.topology.left( e );
-            x.plane = getPlane3d( x.face );
+            x.plane = res.getPlane3d( x.face );
         }
 
         for ( auto v : myverts )
@@ -292,6 +279,52 @@ Mesh makeConvexHull( const Mesh & in )
 Mesh makeConvexHull( const PointCloud & in )
 {
     return makeConvexHull( in.points, in.validPoints );
+}
+
+Contour2f makeConvexHull( Contour2f points )
+{
+    if ( points.size() < 2 )
+        return points;
+
+    auto minPointIt = std::min_element( points.begin(), points.end(), [] ( auto&& a, auto&& b )
+    {
+        return std::tie( a.y, a.x ) < std::tie( b.y, b.x );
+    } );
+    std::swap( *points.begin(), *minPointIt );
+    const auto& minPoint = points.front();
+
+    // sort points by polar angle and distance to the start point
+    std::sort( points.begin() + 1, points.end(), [&] ( const Vector2f& a, const Vector2f& b )
+    {
+        const auto va = a - minPoint, vb = b - minPoint;
+        if ( auto c = cross( va, vb ); c != 0.f )
+            return c > 0.f;
+        return va.lengthSq() > vb.lengthSq();
+    } );
+
+    size_t size = 2;
+    for ( auto i = 2; i < points.size(); ++i )
+    {
+        if ( cross( points[i - 1] - minPoint, points[i - 0] - minPoint ) == 0.f )
+        {
+            assert( ( points[i - 1] - minPoint ).lengthSq() >= ( points[i - 0] - minPoint ).lengthSq() );
+            continue;
+        }
+
+        const auto& p = points[i];
+        while ( size >= 2 )
+        {
+            const auto& a = points[size - 2];
+            const auto& b = points[size - 1];
+            if ( cross( b - a, p - a ) > 0.f )
+                break;
+            size--;
+        }
+        points[size++] = p;
+    }
+    points.erase( points.begin() + size, points.end() );
+
+    return points;
 }
 
 TEST( MRMesh, ConvexHull )

@@ -253,7 +253,7 @@ TrianglesSortRes sortPropagateContour(
     const EdgeId el = lContour[il.intersectionId].edge;
     const EdgeId er = rContour[ir.intersectionId].edge;
 
-    bool edgeATriB = lContour[il.intersectionId].isEdgeATriB;
+    bool edgeATriB = lContour[il.intersectionId].isEdgeATriB();
     bool sameContour = il.contourId == ir.contourId;
     int stepRight = el == er ? 1 : -1;
 
@@ -277,7 +277,7 @@ TrianglesSortRes sortPropagateContour(
                 continue;
             if ( nextL == stopInter )
                 return {}; // reached stop intersection in the contour
-            if ( contour[nextL].isEdgeATriB == edgeATriB )
+            if ( contour[nextL].isEdgeATriB() == edgeATriB )
                 return nextL; // return next/prev intersection (on edge)
         }
     };
@@ -334,15 +334,15 @@ TrianglesSortRes sortPropagateContour(
             EdgeSortState state;
             if ( lReturned )
             {
-                fl = lContour[lOtherRef].tri;
-                fr = rContour[startR].tri;
+                fl = lContour[lOtherRef].tri();
+                fr = rContour[startR].tri();
                 state = EdgeSortState::LReverted;
             }
             else
             {
                 assert( rReturned );
-                fl = lContour[startL].tri;
-                fr = rContour[rOtherRef].tri;
+                fl = lContour[startL].tri();
+                fr = rContour[rOtherRef].tri();
                 state = EdgeSortState::RReverted;
             }
             return sortTrianglesSymmetrical( sortData, el, er, fl, fr, baseEdgeOr, state );
@@ -384,8 +384,8 @@ TrianglesSortRes sortPropagateContour(
         else
             lastCommonEdgeRef = tp.next( lastCommonEdgeRef.sym() ).sym();
 
-        FaceId fl = lContour[lOtherRef].tri;
-        FaceId fr = rContour[rOtherRef].tri;
+        FaceId fl = lContour[lOtherRef].tri();
+        FaceId fr = rContour[rOtherRef].tri();
 
         if ( fl == fr )
             return TrianglesSortRes::Undetermined; // go next if we came to same intersection 
@@ -439,8 +439,8 @@ std::function<bool( const EdgeIntersectionData&, const EdgeIntersectionData& )> 
         const auto & il = l.interOnEdge;
         const auto & ir = r.interOnEdge;
 
-        FaceId fl = sortData->contours[il.contourId][il.intersectionId].tri;
-        FaceId fr = sortData->contours[ir.contourId][ir.intersectionId].tri;
+        FaceId fl = sortData->contours[il.contourId][il.intersectionId].tri();
+        FaceId fr = sortData->contours[ir.contourId][ir.intersectionId].tri();
         EdgeId el = sortData->contours[il.contourId][il.intersectionId].edge;
         EdgeId er = sortData->contours[ir.contourId][ir.intersectionId].edge;
         assert( el.undirected() == baseEdgeOr.undirected() );
@@ -561,7 +561,7 @@ PreCutResult doPreCutMesh( Mesh& mesh, const OneMeshContours& contours )
             newVertId = {}; newEdgeId = {};
 
             const auto& inter = inContour[intersectionId];
-            bool isVert = inter.primitiveId.index() == OneMeshIntersection::Vertex;
+            bool isVert = std::holds_alternative<VertId>( inter.primitiveId );
             bool isNextVert{false};
             if ( intersectionId + 1 < inContour.size() || !closed )
             {
@@ -577,7 +577,7 @@ PreCutResult doPreCutMesh( Mesh& mesh, const OneMeshContours& contours )
             if ( intersectionId + 1 < inContour.size() )
             {
                 const auto& nextPrimId = inContour[intersectionId + 1].primitiveId;
-                isNextVert = nextPrimId.index() == OneMeshIntersection::Vertex;
+                isNextVert = std::holds_alternative<VertId>( nextPrimId );
 
                 if ( isVert )
                 {
@@ -598,7 +598,7 @@ PreCutResult doPreCutMesh( Mesh& mesh, const OneMeshContours& contours )
                     else
                     {
                         newEdgeId = mesh.topology.makeEdge();
-                        if ( nextPrimId.index() == OneMeshIntersection::Edge )
+                        if ( std::holds_alternative<EdgeId>( nextPrimId ) )
                         {
                             auto e = std::get<EdgeId>( nextPrimId );
                             mesh.topology.splice( mesh.topology.next( e.sym() ).sym(), newEdgeId );
@@ -645,13 +645,13 @@ PreCutResult doPreCutMesh( Mesh& mesh, const OneMeshContours& contours )
                 else
                 {
                     const auto& prevInterPrimId = inContour[intersectionId - 1].primitiveId;
-                    if ( prevInterPrimId.index() == OneMeshIntersection::Edge )
+                    if ( std::holds_alternative<EdgeId>( prevInterPrimId ) )
                     {
                         auto e = std::get<EdgeId>( prevInterPrimId );
                         invalidateFace( mesh.topology, res.removedFaces, contourId, intersectionId - 1, mesh.topology.next( e ).sym(), oldEdgesSize );
                         mesh.topology.splice( mesh.topology.next( e ).sym(), path[intersectionId - 1].sym() );
                     }
-                    else if ( prevInterPrimId.index() == OneMeshIntersection::Face )
+                    else if ( std::holds_alternative<FaceId>( prevInterPrimId ) )
                     {
                         auto currVert = newVertId;
                         if ( !currVert )
@@ -684,7 +684,7 @@ PreCutResult doPreCutMesh( Mesh& mesh, const OneMeshContours& contours )
                 invalidateFace( mesh.topology, res.removedFaces, contourId, intersectionId, newEdgeId, oldEdgesSize );
             }
             // add note to edgeData
-            if ( newVertId.valid() && inter.primitiveId.index() == OneMeshIntersection::Edge )
+            if ( newVertId.valid() && std::holds_alternative<EdgeId>( inter.primitiveId ) )
             {
                 EdgeId thisEdge = std::get<EdgeId>( inter.primitiveId );
                 auto& edgeData = res.edgeData[thisEdge.undirected()];
@@ -700,18 +700,18 @@ PreCutResult doPreCutMesh( Mesh& mesh, const OneMeshContours& contours )
                     iterateFindRemovedFaceInfo( res.removedFaces, contourId, intersectionId, thisEdge );
             }
             // fill removed tris
-            if ( inter.primitiveId.index() == OneMeshIntersection::Face )
+            if ( std::holds_alternative<FaceId>( inter.primitiveId ) )
                 removedFacesInfo[intersectionId].f = std::get<FaceId>( inter.primitiveId );
 
         }
         if ( closed )
         {
-            if ( inContour.back().primitiveId.index() != OneMeshIntersection::Vertex )
+            if ( !std::holds_alternative<VertId>( inContour.back().primitiveId ) )
                 mesh.topology.splice( path.back().sym(), path.front() );
         }
         else
         {
-            if ( inContour.back().primitiveId.index() != OneMeshIntersection::Vertex )
+            if ( !std::holds_alternative<VertId>( inContour.back().primitiveId ) )
             {
                 assert( newVertId.valid() );
                 mesh.topology.setOrg( path.back().sym(), newVertId );
@@ -827,8 +827,8 @@ void fixOrphans( Mesh& mesh, const std::vector<EdgePath>& paths, const FullRemov
             }
             if ( sortData )
             {
-                FaceId f1 = sortData->contours[edgeData[res[i]].interOnEdge.contourId][edgeData[res[i]].interOnEdge.intersectionId].tri;
-                FaceId f2 = sortData->contours[edgeData[res[i + 1]].interOnEdge.contourId][edgeData[res[i + 1]].interOnEdge.intersectionId].tri;
+                FaceId f1 = sortData->contours[edgeData[res[i]].interOnEdge.contourId][edgeData[res[i]].interOnEdge.intersectionId].tri();
+                FaceId f2 = sortData->contours[edgeData[res[i + 1]].interOnEdge.contourId][edgeData[res[i + 1]].interOnEdge.intersectionId].tri();
 
                 auto sharedEdge = sortData->otherMesh.topology.sharedEdge( f1, f2 );
                 spdlog::info( "  {}", dotProds[res[i + 1]] - dotProds[res[i]] );
@@ -1136,7 +1136,7 @@ Expected<OneMeshContours> convertMeshTriPointsSurfaceOffsetToMeshContours( const
     {
         const auto inter = initCutContours.intersections[i];
         VertId interVertId;
-        if ( inter.primitiveId.index() == OneMeshIntersection::VariantIndex::Vertex )
+        if ( std::holds_alternative<VertId>( inter.primitiveId ) )
             interVertId = std::get<VertId>( inter.primitiveId );
         else
             interVertId = currentId++;

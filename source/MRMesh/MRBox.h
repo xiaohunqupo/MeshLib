@@ -209,6 +209,36 @@ public:
         return res;
     }
 
+    /// returns the closest point on the box to the given point
+    /// for points outside the box this is equivalent to getBoxClosestPointTo
+    V getProjection( const V & pt ) const
+    {
+        assert( valid() );
+        if ( !contains( pt ) )
+            return getBoxClosestPointTo( pt );
+
+        T minDist = std::numeric_limits<T>::max();
+        int minDistDim {};
+        T minDistPos {};
+
+        for ( auto dim = 0; dim < elements; ++dim )
+        {
+            for ( const auto& border : { min, max } )
+            {
+                if ( auto dist = std::abs( VTraits::getElem( dim, border ) - VTraits::getElem( dim, pt ) ); dist < minDist )
+                {
+                    minDist = dist;
+                    minDistDim = dim;
+                    minDistPos = VTraits::getElem( dim, border );
+                }
+            }
+        }
+
+        auto proj = pt;
+        VTraits::getElem( minDistDim, proj ) = minDistPos;
+        return proj;
+    }
+
     /// decreases min and increased max on given value
     Box expanded( const V & expansion ) const
     {
@@ -318,6 +348,31 @@ template <typename V>
 inline auto depth( const Box<V>& box )
 {
     return box.max.z - box.min.z;
+}
+
+/// returns a vector with unique integer values, each representing a dimension of the box;
+/// the dimensions are sorted according to the sizes of the box along each dimension:
+/// the dimension with the smallest size is first, largest size - last.
+/// E.g. findSortedBoxDims( Box3f( {0, 0, 0}, {2, 1, 3} ) ) == Vector3i(1, 0, 2)
+template <typename V>
+inline auto findSortedBoxDims( const Box<V>& box ) -> typename VectorTraits<V>::template ChangeBaseType<int>
+{
+    constexpr auto es = Box<V>::elements;
+    auto boxDiag = box.max - box.min;
+    std::pair<float, int> ps[es];
+    for ( int i = 0; i < es; ++i )
+        ps[i] = { boxDiag[i], i };
+
+    // bubble sort (optimal for small array)
+    for ( int i = 0; i + 1 < es; ++i )
+        for ( int j = i + 1; j < es; ++j )
+            if ( ps[j] < ps[i] )
+                std::swap( ps[i], ps[j] );
+
+    typename VectorTraits<V>::template ChangeBaseType<int> res( noInit );
+    for ( int i = 0; i < es; ++i )
+        res[i] = ps[i].second;
+    return res;
 }
 
 /// get<0> returns min, get<1> returns max

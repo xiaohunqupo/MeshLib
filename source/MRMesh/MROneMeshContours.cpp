@@ -29,11 +29,11 @@ std::optional<OneMeshIntersection> centralIntersectionForFaces( const Mesh& mesh
     if ( !optMeshEdgePoint ) // curr on face
     {
 #ifndef NDEBUG
-        if ( prev.primitiveId.index() == OneMeshIntersection::Face )
+        if ( std::holds_alternative<FaceId>( prev.primitiveId ) )
         {
             assert( std::get<FaceId>( prev.primitiveId ) == mesh.topology.left( curr.e ) );
         }
-        if ( next.primitiveId.index() == OneMeshIntersection::Face )
+        if ( std::holds_alternative<FaceId>( next.primitiveId ) )
         {
             assert( std::get<FaceId>( next.primitiveId ) == mesh.topology.left( curr.e ) );
         }
@@ -45,13 +45,13 @@ std::optional<OneMeshIntersection> centralIntersectionForFaces( const Mesh& mesh
         auto v = curr.inVertex( mesh.topology );
         if ( v ) // curr in vertex
         {
-            if ( prev.primitiveId.index() == OneMeshIntersection::Vertex )
+            if ( std::holds_alternative<VertId>( prev.primitiveId ) )
             {
                 auto pV = std::get<VertId>( prev.primitiveId );
                 if ( pV == v )
                     return {};
             }
-            if ( next.primitiveId.index() == OneMeshIntersection::Vertex )
+            if ( std::holds_alternative<VertId>( next.primitiveId ) )
             {
                 auto nV = std::get<VertId>( next.primitiveId );
                 if ( nV == v )
@@ -63,7 +63,7 @@ std::optional<OneMeshIntersection> centralIntersectionForFaces( const Mesh& mesh
         auto e = optMeshEdgePoint.e;
 
         // only need that prev and next are on different sides of curr
-        if ( prev.primitiveId.index() == OneMeshIntersection::Face )
+        if ( std::holds_alternative<FaceId>( prev.primitiveId ) )
         {
             auto pFId = std::get<FaceId>( prev.primitiveId );
             if ( mesh.topology.right( e ) != pFId )
@@ -72,7 +72,7 @@ std::optional<OneMeshIntersection> centralIntersectionForFaces( const Mesh& mesh
                 assert( mesh.topology.right( e ) == pFId );
             }
 
-            if ( next.primitiveId.index() == OneMeshIntersection::Vertex )
+            if ( std::holds_alternative<VertId>( next.primitiveId ) )
             {
                 auto nVId = std::get<VertId>( next.primitiveId );
                 if ( mesh.topology.dest( mesh.topology.next( e ) ) != nVId )
@@ -89,7 +89,7 @@ std::optional<OneMeshIntersection> centralIntersectionForFaces( const Mesh& mesh
                     return OneMeshIntersection{ e,mesh.edgePoint( optMeshEdgePoint ) };
                 }
             }
-            else if ( next.primitiveId.index() == OneMeshIntersection::Edge )
+            else if ( std::holds_alternative<EdgeId>( next.primitiveId ) )
             {
                 auto nEUId = std::get<EdgeId>( next.primitiveId ).undirected();
                 if ( mesh.topology.next( e ).undirected() != nEUId &&
@@ -126,7 +126,7 @@ std::optional<OneMeshIntersection> centralIntersectionForFaces( const Mesh& mesh
                 assert( mesh.topology.left( e ) == nFId );
             }
 
-            if ( prev.primitiveId.index() == OneMeshIntersection::Vertex )
+            if ( std::holds_alternative<VertId>( prev.primitiveId ) )
             {
                 auto pVId = std::get<VertId>( prev.primitiveId );
                 if ( mesh.topology.dest( mesh.topology.prev( e ) ) != pVId )
@@ -205,14 +205,14 @@ std::optional<OneMeshIntersection> centralIntersection( const Mesh& mesh, const 
 {
     MR_TIMER;
     type = CenterInterType::Common;
-    if ( prev.primitiveId.index() == OneMeshIntersection::Face || next.primitiveId.index() == OneMeshIntersection::Face )
+    if ( std::holds_alternative<FaceId>( prev.primitiveId ) || std::holds_alternative<FaceId>( next.primitiveId ) )
         return centralIntersectionForFaces( mesh, prev, curr, next );
 
     const auto& topology = mesh.topology;
-    if ( prev.primitiveId.index() == OneMeshIntersection::Vertex )
+    if ( std::holds_alternative<VertId>( prev.primitiveId ) )
     {
         auto pVId = std::get<VertId>( prev.primitiveId );
-        if ( next.primitiveId.index() == OneMeshIntersection::Vertex )
+        if ( std::holds_alternative<VertId>( next.primitiveId ) )
         {
             auto nVId = std::get<VertId>( next.primitiveId );
             if ( nVId == pVId )
@@ -226,7 +226,7 @@ std::optional<OneMeshIntersection> centralIntersection( const Mesh& mesh, const 
                     return {};
             }
         }
-        else if ( next.primitiveId.index() == OneMeshIntersection::Edge )
+        else if ( std::holds_alternative<EdgeId>( next.primitiveId ) )
         {
             auto nEId = std::get<EdgeId>( next.primitiveId );
             if ( topology.dest( topology.prev( nEId ) ) == pVId ) // correct orientation
@@ -251,10 +251,10 @@ std::optional<OneMeshIntersection> centralIntersection( const Mesh& mesh, const 
         else
             return OneMeshIntersection{edgeOp.e.sym(),mesh.edgePoint( edgeOp )};
     }
-    else if ( prev.primitiveId.index() == OneMeshIntersection::Edge )
+    else if ( std::holds_alternative<EdgeId>( prev.primitiveId ) )
     {
         auto pEId = std::get<EdgeId>( prev.primitiveId );
-        if ( next.primitiveId.index() == OneMeshIntersection::Vertex )
+        if ( std::holds_alternative<VertId>( next.primitiveId ) )
         {
             auto nVId = std::get<VertId>( next.primitiveId );
             if ( topology.dest( topology.next( pEId ) ) == nVId )
@@ -265,7 +265,7 @@ std::optional<OneMeshIntersection> centralIntersection( const Mesh& mesh, const 
                 return OneMeshIntersection{ findSharedFace( topology,nVId,pEId,curr ),mesh.triPoint( curr ) };
             }
         }
-        else if ( next.primitiveId.index() == OneMeshIntersection::Edge )
+        else if ( std::holds_alternative<EdgeId>( next.primitiveId ) )
         {
             auto nEId = std::get<EdgeId>( next.primitiveId );
             if ( nEId.undirected() == pEId.undirected() )
@@ -484,10 +484,12 @@ void subdivideLoneContours( Mesh& mesh, const OneMeshContours& contours, FaceHas
 
 void getOneMeshIntersectionContours( const Mesh& meshA, const Mesh& meshB, const ContinuousContours& contours,
     OneMeshContours* outA, OneMeshContours* outB,
-    const CoordinateConverters& converters, const AffineXf3f* rigidB2A /*= nullptr */ )
+    const CoordinateConverters& converters, const AffineXf3f* rigidB2A, Contours3f* outPtsA, bool addSelfyTerminalVerts )
 {
     MR_TIMER;
-    assert( outA || outB );
+    assert( outA || outB || outPtsA );
+    // addSelfyTerminalVerts is supported only if both meshes are actually the same without any relative transformation
+    assert( !addSelfyTerminalVerts || ( &meshA == &meshB && !rigidB2A ) );
 
     std::function<Vector3f( const Vector3f& coord, bool meshA )> getCoord;
 
@@ -512,15 +514,22 @@ void getOneMeshIntersectionContours( const Mesh& meshA, const Mesh& meshB, const
         outA->resize( contours.size() );
     if ( outB )
         outB->resize( contours.size() );
+    if ( outPtsA )
+        outPtsA->resize( contours.size() );
     ParallelFor( contours, [&]( size_t j )
     {
         OneMeshContour curA, curB;
+        Contour3f ptsA;
         const auto& curInContour = contours[j];
+        if ( curInContour.empty() )
+            return;
         curA.closed = curB.closed = isClosed( curInContour );
         if ( outA )
             curA.intersections.resize( curInContour.size() );
         if ( outB )
             curB.intersections.resize( curInContour.size() );
+        if ( outPtsA )
+            resizeNoInit( ptsA, curInContour.size() );
 
         ParallelFor( curInContour, [&]( size_t i )
         {
@@ -528,42 +537,79 @@ void getOneMeshIntersectionContours( const Mesh& meshA, const Mesh& meshB, const
             const auto& inIntersection = curInContour[i];
             OneMeshIntersection pntA, pntB;
 
-            if ( inIntersection.isEdgeATriB )
+            if ( inIntersection.isEdgeATriB() )
             {
                 pntA.primitiveId = inIntersection.edge;
-                pntB.primitiveId = inIntersection.tri;
-                meshB.getTriPoints( inIntersection.tri, a, b, c );
+                pntB.primitiveId = inIntersection.tri();
+                meshB.getTriPoints( inIntersection.tri(), a, b, c );
                 d = meshA.orgPnt( inIntersection.edge );
                 e = meshA.destPnt( inIntersection.edge );
             }
             else
             {
                 pntB.primitiveId = inIntersection.edge;
-                pntA.primitiveId = inIntersection.tri;
-                meshA.getTriPoints( inIntersection.tri, a, b, c );
+                pntA.primitiveId = inIntersection.tri();
+                meshA.getTriPoints( inIntersection.tri(), a, b, c );
                 d = meshB.orgPnt( inIntersection.edge );
                 e = meshB.destPnt( inIntersection.edge );
             }
             // always calculate in mesh A space
             pntA.coordinate = findTriangleSegmentIntersectionPrecise(
-                getCoord( a, !inIntersection.isEdgeATriB ),
-                getCoord( b, !inIntersection.isEdgeATriB ),
-                getCoord( c, !inIntersection.isEdgeATriB ),
-                getCoord( d, inIntersection.isEdgeATriB ),
-                getCoord( e, inIntersection.isEdgeATriB ), converters );
+                getCoord( a, !inIntersection.isEdgeATriB() ),
+                getCoord( b, !inIntersection.isEdgeATriB() ),
+                getCoord( c, !inIntersection.isEdgeATriB() ),
+                getCoord( d, inIntersection.isEdgeATriB() ),
+                getCoord( e, inIntersection.isEdgeATriB() ), converters );
 
-            if ( outA )
+            if ( !curA.intersections.empty() )
                 curA.intersections[i] = pntA;
-            if ( outB )
+            if ( !ptsA.empty() )
+                ptsA[i] = pntA.coordinate;
+            if ( !curB.intersections.empty() )
             {
                 pntB.coordinate = rigidB2A ? inverseXf( pntA.coordinate ) : pntA.coordinate;
                 curB.intersections[i] = pntB;
             }
         } );
+        if ( !curA.closed && addSelfyTerminalVerts )
+        {
+            const auto & points = meshA.points;
+            const auto & topology = meshA.topology;
+            const auto i0 = curInContour.front();
+            if ( topology.right( i0.edge ) )
+            {
+                const auto v0 = topology.dest( topology.prev( i0.edge ) );
+                assert( topology.isTriVert( i0.tri(), v0 ) );
+                OneMeshIntersection o0{ .primitiveId = v0, .coordinate = points[v0] };
+                if ( !curA.intersections.empty() )
+                    curA.intersections.insert( curA.intersections.begin(), o0 );
+                if ( !ptsA.empty() )
+                    ptsA.insert( ptsA.begin(), o0.coordinate );
+                if ( !curB.intersections.empty() )
+                    curB.intersections.insert( curB.intersections.begin(), o0 );
+            }
+
+            const auto i1 = curInContour.back();
+            if ( topology.left( i1.edge ) )
+            {
+                const auto v1 = topology.dest( topology.next( i1.edge ) );
+                assert( topology.isTriVert( i1.tri(), v1 ) );
+                OneMeshIntersection o1{ .primitiveId = v1, .coordinate = points[v1] };
+                if ( !curA.intersections.empty() )
+                    curA.intersections.push_back( o1 );
+                if ( !ptsA.empty() )
+                    ptsA.push_back( o1.coordinate );
+                if ( !curB.intersections.empty() )
+                    curB.intersections.push_back( o1 );
+            }
+        }
+
         if ( outA )
             (*outA)[j] = std::move( curA );
         if ( outB )
             (*outB)[j] = std::move( curB );
+        if ( outPtsA )
+            (*outPtsA)[j] = std::move( ptsA );
     } );
 }
 
@@ -590,11 +636,11 @@ OneMeshContours getOneMeshSelfIntersectionContours( const Mesh& mesh, const Cont
             {
                 const auto& inIntersection = curInContour[i];
                 auto& outIntersection = curOutContour[i];
-                if ( !rigidB2A == inIntersection.isEdgeATriB )
+                if ( !rigidB2A == inIntersection.isEdgeATriB() )
                     outIntersection.primitiveId = inIntersection.edge;
                 else
-                    outIntersection.primitiveId = inIntersection.tri;
-                mesh.getTriPoints( inIntersection.tri, a, b, c );
+                    outIntersection.primitiveId = inIntersection.tri();
+                mesh.getTriPoints( inIntersection.tri(), a, b, c );
                 d = mesh.orgPnt( inIntersection.edge );
                 e = mesh.destPnt( inIntersection.edge );
 
@@ -729,7 +775,7 @@ Expected<OneMeshContour> convertMeshTriPointsToMeshContour( const Mesh& mesh, co
         if ( surfacePaths[i].intersections.size() == 1 )
         {
             // if lone make sure that prev MeshTriPoint is on the right (if on the left - sym)
-            if ( surfacePaths[i].intersections[0].primitiveId.index() == OneMeshIntersection::Edge )
+            if ( std::holds_alternative<EdgeId>( surfacePaths[i].intersections[0].primitiveId ) )
             {
                 auto& edge = std::get<EdgeId>( surfacePaths[i].intersections[0].primitiveId );
                 auto onEdge = meshTriPoints[i].onEdge( mesh.topology );
